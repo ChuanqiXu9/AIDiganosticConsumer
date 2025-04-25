@@ -1,37 +1,29 @@
-[中文](./README_CN.md)
+一个用于介绍人工智能的玩具，帮助 C++ 程序员更好地理解诊断错误信息。
 
-A toy to introduce AI to help C++ programmers to better understand the diagnostic error messages.
+该玩具实现为一个 clang 插件，因此可以劫持 clang 的诊断消费者以及编译器本身的任何其他信息。
 
-The toy is implemented as a clang plugin then it can be hijacked clang's diganostic consumer and any
-other information in the compiler itself.
+该玩具基于 Clang/LLVM trunk 21.0.git + 15bb1db4a98309f8769fa6d53a52eae62a61fbb2 构建。未测试其他版本。
+但鉴于玩具中使用的所有 API 似乎都是稳定的，我猜它也可以与某些旧版本一起使用。
 
-The toy is built with Clang/LLVM trunk 21.0.git + 15bb1db4a98309f8769fa6d53a52eae62a61fbb2. No other
-version tested. But given all API used in the toy seems to be stable, I guess it can work with some older
-version too.
+要使用该玩具本身，您需要在 https://bailian.console.aliyun.com/?tab=model#/model-market 上获取阿里云模型服务的 API 密钥。
+然后需要将 API 密钥设置在环境变量 "CLANG_AI_KEY" 中。
 
-To use the toy itself, you need to have an API key for aliyun's model service
-at https://bailian.console.aliyun.com/?tab=model#/model-market . Then you need to set the API key in the
-environment variable "CLANG_AI_KEY".
+对于使用其他服务，如果所需的服务支持基于 CURL 的 API，则更新 AIDiagnosticConsumer::HandleDiagnostic（位于
+AIDiagnosticConsumer.cpp）应该很容易。
 
-For using other services, it should be easy
-to update `AIDiagnosticConsumer::HandleDiagnostic` in `AIDiagnosticConsumer.cpp` if the service you want support
-CURL based API.
+默认模型是 qwen-max。如果您想在上述链接中使用其他模型，可以将环境变量 CLANG_AI_MODEL 设置为您想使用的模型名称。
+（有关其他模型的名称，请参阅上述链接）。
 
-The default model is `qwen-max`. If you want to use other model in the above link, you can set the environment
-variable `CLANG_AI_MODEL` to the model name you want to use. (See the above link for names of other models).
+默认情况下，AI 将以中文回复。如果您希望 AI 使用其他语言回复，可以将环境变量 CLANG_AI_REPLY_LANG 设置为相应的值。
+当要求 AI 使用英语以外的其他语言回复时，AI 会先翻译错误消息，然后再进行解释并提供解决方案。
 
-By default, the AI will reply in Chinese. If you want the AI to reply in other language, you can set the environment
-variable `CLANG_AI_REPLY_LANG` to the corresponding value. When the AI is asked to reply in other language than English,
-the AI will translate the error message first before explaining and offer the solution.
+AI 有一个默认的角色提示。您可以在 AIDiagnosticConsumer.cpp 中看到它。如果您想更改它，可以将环境变量
+CLANG_AI_ROLE_PROMPT 设置为您想使用的提示。
 
-There was a default role prompt for the AI. You can see it `AIDiagnosticConsumer.cpp`. If you want to change it,
-you can set the environment variable `CLANG_AI_ROLE_PROMPT` to the prompt you want to use.
+利用 AI 诊断编译器中的错误信息具有潜在优势，因为编译器拥有大量代码的内部信息和分析结果。我认为在这方面有很大的改进空间。
 
-There is a potential advantages of using AI to diagnose error messages in compiler since the compiler have a lot
-internal and analyzed information about the code. I feel there is a huge space to improve.
+如果没有发生错误，插件不会影响编译时间。这一点很重要，因为当前的响应速度并不令人满意，因此将其用于成功的编译任务可能并不合适。
 
-The plugin won't affect the compilation time if no error happens. This is important since the current response speed
-is not satisfying so it may not be good to use it for successful compilation jobs.
 
 # Example 1
 
