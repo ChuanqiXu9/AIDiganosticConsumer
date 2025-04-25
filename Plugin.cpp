@@ -22,16 +22,17 @@ public:
   // Required but we don't intend to consume any AST specificly.
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
                                                  StringRef InFile) override {
-    // Slighly hack. The API expects us to create a new AST consumer but we hacked the compiler Instance
-    // to create a diagnostic consumer. Maybe we can add some new abstractions here.
+    // Slighly hack. The API expects us to create a new AST consumer but we
+    // hacked the compiler Instance to create a diagnostic consumer. Maybe we
+    // can add some new abstractions here.
     auto &Diags = CI.getDiagnostics();
     auto AIDiagConsumer = createAIDiagnosticConsumer(CI);
     if (Diags.ownsClient()) {
-        Diags.setClient(
-            new ChainedDiagnosticConsumer(Diags.takeClient(), std::move(AIDiagConsumer)));
+      Diags.setClient(new ChainedDiagnosticConsumer(Diags.takeClient(),
+                                                    std::move(AIDiagConsumer)));
     } else {
-        Diags.setClient(
-            new ChainedDiagnosticConsumer(Diags.getClient(), std::move(AIDiagConsumer)));
+      Diags.setClient(new ChainedDiagnosticConsumer(Diags.getClient(),
+                                                    std::move(AIDiagConsumer)));
     }
 
     // Unused ASTConsumer.
@@ -40,7 +41,7 @@ public:
 
   bool ParseArgs(const CompilerInstance &CI,
                  const std::vector<std::string> &arg) override {
-      return true;
+    return true;
   }
 };
 

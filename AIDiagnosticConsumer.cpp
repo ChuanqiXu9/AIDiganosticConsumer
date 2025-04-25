@@ -31,24 +31,22 @@ struct MemoryStruct {
 size_t write_callback(char *data, size_t size, size_t nmemb, void *userdata) {
   size_t realsize = size * nmemb;
   auto *mem = (struct MemoryStruct *)userdata;
- 
+
   void *ptr = realloc(mem->response, mem->size + realsize + 1);
-  if(!ptr)
-    return 0;  /* out of memory */
- 
-  mem->response = (char*)ptr;
+  if (!ptr)
+    return 0; /* out of memory */
+
+  mem->response = (char *)ptr;
   memcpy(&(mem->response[mem->size]), data, realsize);
   mem->size += realsize;
   mem->response[mem->size] = 0;
- 
+
   return realsize;
 }
 
 class AIDiagnosticConsumer : public DiagnosticConsumer {
 public:
-  AIDiagnosticConsumer(CompilerInstance &CI) : CI(CI) {
-    Init();
-  }
+  AIDiagnosticConsumer(CompilerInstance &CI) : CI(CI) { Init(); }
 
   void Init();
 
@@ -67,7 +65,7 @@ private:
   CompilerInstance &CI;
 };
 
-template <typename... T> static void elog(const char *Fmt, T &&... Vals) {
+template <typename... T> static void elog(const char *Fmt, T &&...Vals) {
   llvm::errs().changeColor(llvm::raw_ostream::RED);
   llvm::errs() << llvm::formatv(Fmt, std::forward<T>(Vals)...) << "\n";
   llvm::errs().resetColor();
@@ -76,7 +74,8 @@ template <typename... T> static void elog(const char *Fmt, T &&... Vals) {
 void AIDiagnosticConsumer::Init() {
   AK = std::getenv("CLANG_AI_KEY");
   if (!AK) {
-    elog("FAILED to find API key for AI in clang. Please set the API key in the environment variable CLANG_AI_KEY.");
+    elog("FAILED to find API key for AI in clang. Please set the API key in "
+         "the environment variable CLANG_AI_KEY.");
     return;
   }
 
@@ -91,7 +90,8 @@ void AIDiagnosticConsumer::Init() {
   ROLE_PROMPT = std::getenv("CLANG_AI_ROLE_PROMPT");
   if (!ROLE_PROMPT)
     ROLE_PROMPT = "You're an AI assistant that helps improve compiler errors. "
-                  "Your task is to analyze the given error message and provide a solution. "
+                  "Your task is to analyze the given error message and provide "
+                  "a solution. "
                   "Don't repear error message simply. "
                   "Don't guess if you're not sure about your reply. "
                   "Please be brief as much as possible.";
@@ -101,7 +101,8 @@ void AIDiagnosticConsumer::Init() {
   RolePrompt += REPLY_LANG;
   RolePrompt += ". ";
 
-  RolePrompt += "Please translate the error message if you were asked to reply in language other than English. ";
+  RolePrompt += "Please translate the error message if you were asked to reply "
+                "in language other than English. ";
 
   // Get information from preprocessor
   if (!CI.hasPreprocessor())
@@ -109,9 +110,12 @@ void AIDiagnosticConsumer::Init() {
 
   auto &PP = CI.getPreprocessor();
 
-  auto GetLiteralMacroValue = [&PP](StringRef MacroName) -> std::optional<llvm::SmallString<64>> {
-    // Might not be good since IdentifierTable::get may add additional identifiers.
-    IdentifierTable &Table = const_cast<Preprocessor &>(PP).getIdentifierTable();
+  auto GetLiteralMacroValue =
+      [&PP](StringRef MacroName) -> std::optional<llvm::SmallString<64>> {
+    // Might not be good since IdentifierTable::get may add additional
+    // identifiers.
+    IdentifierTable &Table =
+        const_cast<Preprocessor &>(PP).getIdentifierTable();
     auto &IInfo = Table.get(MacroName);
     auto *MInfo = PP.getMacroInfo(&IInfo);
     if (!MInfo)
@@ -119,7 +123,7 @@ void AIDiagnosticConsumer::Init() {
 
     if (!MInfo->getNumTokens())
       return std::nullopt;
-    
+
     auto ValueToken = MInfo->getReplacementToken(0);
     if (!ValueToken.isLiteral())
       return std::nullopt;
@@ -137,7 +141,8 @@ void AIDiagnosticConsumer::Init() {
   }
 }
 
-void AIDiagnosticConsumer::getPrompt(std::string &Prompt, const Diagnostic &Info) {
+void AIDiagnosticConsumer::getPrompt(std::string &Prompt,
+                                     const Diagnostic &Info) {
   llvm::SmallString<256> OutStr;
   Info.FormatDiagnostic(OutStr);
 
@@ -162,19 +167,20 @@ void AIDiagnosticConsumer::getPrompt(std::string &Prompt, const Diagnostic &Info
   // instantiation stack to help the AI to understand the context.
   // This is the general too verbose part for human to understand.
   if (S.inTemplateInstantiation()) {
-    // FIXME: The folloing code doens't print the enclosing declaration before instantiation.
-    // e.g.,
+    // FIXME: The folloing code doens't print the enclosing declaration before
+    // instantiation. e.g.,
     //
     // void func() { std::unique_ptr<int> p = std::make_unique<int>(1); }
     //
     // I hope to print func as an input to AI.
 
-    
-    auto Iter = S.CodeSynthesisContexts.begin(), End = S.CodeSynthesisContexts.end(); 
+    auto Iter = S.CodeSynthesisContexts.begin(),
+         End = S.CodeSynthesisContexts.end();
     if (Iter == End)
       return;
 
-    OS << "We're in the process of a template instantiation. The following were the instantiation stack: \n";
+    OS << "We're in the process of a template instantiation. The following "
+          "were the instantiation stack: \n";
     OS << "The instantiation is triggered by: \n";
     Iter->PointOfInstantiation.print(OS, SrcMgr);
     OS << "\n";
@@ -186,27 +192,28 @@ void AIDiagnosticConsumer::getPrompt(std::string &Prompt, const Diagnostic &Info
     }
     // How can we get the enclosing function by the location?
 
-    for (;Iter != End; ++Iter) {
+    for (; Iter != End; ++Iter) {
       OS << "\n";
-      OS << Lexer::getSourceText(SrcMgr.getExpansionRange(Iter->Entity->getSourceRange()),
-                           SrcMgr,
-                           CI.getLangOpts());
+      OS << Lexer::getSourceText(
+          SrcMgr.getExpansionRange(Iter->Entity->getSourceRange()), SrcMgr,
+          CI.getLangOpts());
       OS << "\n";
     }
   } else {
     if (DeclContext *CurDC = S.getCurLexicalContext()) {
       OS << "The current parsing context is: ";
-      OS << Lexer::getSourceText(SrcMgr.getExpansionRange(cast<Decl>(CurDC)->getSourceRange()),
-                            SrcMgr,
-                            CI.getLangOpts());
+      OS << Lexer::getSourceText(
+          SrcMgr.getExpansionRange(cast<Decl>(CurDC)->getSourceRange()), SrcMgr,
+          CI.getLangOpts());
 
-      // If the current function is a method, maybe it is good to print the class.
+      // If the current function is a method, maybe it is good to print the
+      // class.
     }
   }
 }
 
 void AIDiagnosticConsumer::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
-                                                   const Diagnostic &Info) {
+                                            const Diagnostic &Info) {
   if (!AK)
     return;
 
@@ -215,71 +222,78 @@ void AIDiagnosticConsumer::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel,
 
   std::string Prompt;
   getPrompt(Prompt, Info);
-  
+
   CURL *curl;
 
   curl = curl_easy_init();
   if (curl) {
-      curl_easy_setopt(curl, CURLOPT_URL, "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions");
+    curl_easy_setopt(
+        curl, CURLOPT_URL,
+        "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions");
 
-      struct curl_slist *headers = NULL;
-      llvm::SmallString<256> Authorization("Authorization: Bearer ");
-      Authorization += AK;
-		  headers = curl_slist_append(headers, Authorization.c_str());
-		  headers = curl_slist_append(headers, "Content-Type: application/json");
-      curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    struct curl_slist *headers = NULL;
+    llvm::SmallString<256> Authorization("Authorization: Bearer ");
+    Authorization += AK;
+    headers = curl_slist_append(headers, Authorization.c_str());
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
-      llvm::json::Object Request{{"model", Model}, {"enable_search", true}};
-      llvm::json::Object Message;
-      llvm::json::Array Messages;
-      Messages.push_back(llvm::json::Object({{"role", "system"}, {"content", RolePrompt.c_str()}}));
-      Messages.push_back(llvm::json::Object({{"role", "user"}, {"content", Prompt.c_str()}}));
-      Request.insert({"messages", std::move(Messages)});
-      llvm::json::Object SearchOptions;
-      SearchOptions.insert({"forced_search", true});
-      Request.insert({"search_options", std::move(SearchOptions)});
+    llvm::json::Object Request{{"model", Model}, {"enable_search", true}};
+    llvm::json::Object Message;
+    llvm::json::Array Messages;
+    Messages.push_back(llvm::json::Object(
+        {{"role", "system"}, {"content", RolePrompt.c_str()}}));
+    Messages.push_back(
+        llvm::json::Object({{"role", "user"}, {"content", Prompt.c_str()}}));
+    Request.insert({"messages", std::move(Messages)});
+    llvm::json::Object SearchOptions;
+    SearchOptions.insert({"forced_search", true});
+    Request.insert({"search_options", std::move(SearchOptions)});
 
-      std::string RequestData;
-      llvm::raw_string_ostream OS(RequestData);
-      OS << llvm::json::Value(std::move(Request));
-      curl_easy_setopt(curl, CURLOPT_POSTFIELDS, RequestData.c_str());
+    std::string RequestData;
+    llvm::raw_string_ostream OS(RequestData);
+    OS << llvm::json::Value(std::move(Request));
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, RequestData.c_str());
 
-      curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-      MemoryStruct Response;
-      curl_easy_setopt(curl, CURLOPT_WRITEDATA, &Response);
-      CURLcode res = curl_easy_perform(curl);
-      if (res == CURLE_OK) {
-        [](StringRef Response) {
-          llvm::Expected<llvm::json::Value> ExpectedResponseJson = llvm::json::parse(Response);
-          if (llvm::Error Err = ExpectedResponseJson.takeError()) {
-            elog("AI response error: %0\n", llvm::toString(std::move(Err)));
-            return;
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    MemoryStruct Response;
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &Response);
+    CURLcode res = curl_easy_perform(curl);
+    if (res == CURLE_OK) {
+      [](StringRef Response) {
+        llvm::Expected<llvm::json::Value> ExpectedResponseJson =
+            llvm::json::parse(Response);
+        if (llvm::Error Err = ExpectedResponseJson.takeError()) {
+          elog("AI response error: %0\n", llvm::toString(std::move(Err)));
+          return;
+        }
+
+        if (ExpectedResponseJson->getAsObject()->getObject("error")) {
+          elog("AI Response Error: %0\n", Response);
+          return;
+        }
+
+        auto *Array = ExpectedResponseJson->getAsObject()->getArray("choices");
+        for (auto &Choice : *Array) {
+          if (std::optional<StringRef> Content =
+                  Choice.getAsObject()->getObject("message")->getString(
+                      "content")) {
+            elog("AI Suggestion: ");
+            llvm::errs() << *Content << "\n";
           }
+        }
+      }(Response.response);
+    }
 
-          if (ExpectedResponseJson->getAsObject()->getObject("error")) {
-            elog("AI Response Error: %0\n", Response);
-            return;
-          } 
-          
-          auto *Array = ExpectedResponseJson->getAsObject()->getArray("choices");
-          for (auto &Choice : *Array) {
-            if (std::optional<StringRef> Content = Choice.getAsObject()->getObject("message")->getString("content")) {
-              elog("AI Suggestion: ");
-              llvm::errs() << *Content << "\n";
-            }
-          }
-        }(Response.response);
-      }
-
-      free(Response.response);
-      curl_easy_cleanup(curl);
+    free(Response.response);
+    curl_easy_cleanup(curl);
   }
 }
-}
+} // namespace
 
-namespace  clang {
-std::unique_ptr<DiagnosticConsumer> createAIDiagnosticConsumer(
-    CompilerInstance &CI) {
+namespace clang {
+std::unique_ptr<DiagnosticConsumer>
+createAIDiagnosticConsumer(CompilerInstance &CI) {
   return std::make_unique<AIDiagnosticConsumer>(CI);
 }
-}
+} // namespace clang
